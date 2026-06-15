@@ -1,0 +1,26 @@
+# .gitignore - BentoPDF-Deploy
+# Exclusion des fichiers inutiles ou sensibles lors des commits Git.
+# ----------------------------------------------------------------------------- #
+
+# Certificats TLS — ne jamais committer des clés privées ou certificats
+certs/*
+!certs/.gitkeep
+
+# Branding personnalisé (assets locaux non versionnés)
+branding/*
+!branding/.gitkeep
+
+# Assets WASM locaux (générés par scripts/fetch-wasm.sh — binaires non versionnés)
+wasm/*
+!wasm/.gitkeep
+
+# Artefacts OS
+.DS_Store
+Thumbs.db
+
+# IDE / éditeur / OS / Temp (au cas ou...) 
+.vscode/
+.idea/
+*.swp
+*.swo
+tmp/
