@@ -26,7 +26,7 @@ args:
 | Variable | Défaut | Description |
 |---|---|---|
 | `VITE_BRAND_NAME` | `BentoPDF` | Nom affiché dans l'interface et l'onglet navigateur |
-| `VITE_BRAND_LOGO` | *(vide)* | Chemin du logo (ex : `branding/logo.svg`) |
+| `VITE_BRAND_LOGO` | *(vide)* | Chemin du logo (ex : `images/logo.svg`) |
 | `VITE_FOOTER_TEXT` | *(vide)* | Texte personnalisé dans le pied de page |
 | `VITE_DEFAULT_LANGUAGE` | `fr` | Langue de l'interface au premier chargement |
 
@@ -43,7 +43,19 @@ args:
 ```
 
 ### Logo personnalisé
-[In Work]
+
+Déposer le fichier image dans le dossier `branding/`
+Ajouter une instruction `COPY` dans le Dockerfile pour l'intégrer avant la compilation Vite
+```
+# Dans le Dockerfile, avant RUN npm run build:docker :
+COPY branding/logo.ico /build/public/images/logo.svg
+```
+
+Puis référencez le chemin dans docker-compose.yml :
+```yaml
+args:
+  VITE_BRAND_LOGO: "images/logo.ico"
+```
 
 ---
 
