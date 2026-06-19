@@ -46,7 +46,7 @@ args:
 
 Déposer le fichier image dans le dossier `branding/`
 Ajouter une instruction `COPY` dans le Dockerfile pour l'intégrer avant la compilation Vite
-```
+```Dockerfile
 # Dans le Dockerfile, avant RUN npm run build:docker :
 COPY branding/logo.ico /build/public/images/logo.svg
 ```
