@@ -1,4 +1,5 @@
 # BentoPDF-Deploy
+[![Project checks](https://github.com/Miiraak/BentoPDF-Deploy/actions/workflows/ci.yml/badge.svg)](https://github.com/Miiraak/BentoPDF-Deploy/actions/workflows/ci.yml) [![Repository security](https://github.com/Miiraak/Bento-Deploy-Tests/actions/workflows/security.yml/badge.svg)](https://github.com/Miiraak/Bento-Deploy-Tests/actions/workflows/security.yml) [![Dependabot Updates](https://github.com/Miiraak/Bento-Deploy-Tests/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Miiraak/Bento-Deploy-Tests/actions/workflows/dependabot/dependabot-updates)
 
 Déploiement auto-hébergé de [BentoPDF](https://github.com/alam00000/bentopdf) — build local, HTTPS avec terminaison TLS, et assets WASM servis localement.
 
