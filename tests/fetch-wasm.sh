@@ -2,6 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+for script in "$ROOT_DIR"/scripts/{fetch-wasm,show-licenses}.sh; do
+    if [[ ! -x "$script" ]]; then
+        echo "Script is not executable: $script" >&2
+        exit 1
+    fi
+done
 WORKDIR=$(mktemp -d)
 trap 'rm -rf -- "$WORKDIR"' EXIT
 mkdir -p "$WORKDIR/repo/scripts" "$WORKDIR/bin"
