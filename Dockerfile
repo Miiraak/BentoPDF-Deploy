@@ -1,9 +1,29 @@
-# BentoPDF-Deploy - Dockerfile
-# ÉTAPE 1 - BUILD
-# -----------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+# =============================================================================
+# BentoPDF-Deploy — Dockerfile
+#
+# Étape 1 (builder) : télécharge BentoPDF, installe les dépendances npm,
+#                     compile le frontend Vite, et intègre les assets WASM
+#                     préparés localement (dossier wasm/).
+#
+# Étape 2 (runtime) : nginx:alpine sert le bundle statique en HTTPS.
+#                     Les certificats TLS sont montés depuis l'hôte (certs/).
+#                     La config NGINX est définie dans nginx/nginx.conf.
+#
+# Prérequis :
+#   Lancer ./scripts/fetch-wasm.sh avant docker compose build
+#   pour peupler le dossier wasm/ avec les assets WASM.
+#
+# Ports :
+#   80  — HTTP  (redirige automatiquement vers HTTPS)
+#   443 — HTTPS (nécessite cert.pem et key.pem dans certs/)
+# =============================================================================
 
-# Les valeurs sont injectées depuis le docker-compose.yml
+# ===========================================================================
+# ÉTAPE 1 — BUILD
+# ===========================================================================
+FROM node:22-alpine AS builder
+
+# Valeurs injectées depuis docker-compose.yml (section args)
 ARG BENTOPDF_VERSION
 ARG SIMPLE_MODE=true
 ARG VITE_DEFAULT_LANGUAGE
@@ -11,6 +31,7 @@ ARG VITE_BRAND_NAME
 ARG VITE_BRAND_LOGO
 ARG VITE_FOOTER_TEXT
 ARG DISABLE_TOOLS
+ARG VITE_TESSERACT_AVAILABLE_LANGUAGES=eng,fra
 
 # Variables d'environnement transmises à Vite au moment du build
 ENV HUSKY=0 \
@@ -27,7 +48,7 @@ ENV HUSKY=0 \
     VITE_TESSERACT_WORKER_URL=/wasm/tesseract/worker.min.js \
     VITE_TESSERACT_CORE_URL=/wasm/tesseract/core/ \
     VITE_TESSERACT_LANG_URL=/wasm/tesseract/lang-data/ \
-    VITE_TESSERACT_AVAILABLE_LANGUAGES=eng,fra
+    VITE_TESSERACT_AVAILABLE_LANGUAGES=$VITE_TESSERACT_AVAILABLE_LANGUAGES
 
 WORKDIR /build
 
@@ -40,7 +61,7 @@ RUN wget --tries=5 --timeout=30 \
     rm -f /tmp/bentopdf.tar.gz && \
     test -f package.json
 
-# Configuration npm (aide si réseau instable)
+# Configuration npm pour les réseaux lents
 RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 60000 && \
     npm config set fetch-retry-maxtimeout 300000 && \
@@ -49,32 +70,36 @@ RUN npm config set fetch-retries 5 && \
 # Installation des dépendances (respecte le package-lock.json)
 RUN npm ci
 
-# Compilation du frontend
+# Compilation du frontend (build:docker = vite build uniquement)
+COPY branding/ public/images/
 RUN npm run build:docker
 
 # Fichier de configuration runtime par défaut
 RUN printf '{"disabledTools":[],"editorDisabledCategories":[]}\n' > dist/config.json
 
-# Injection des assets WASM / OCR dans la distribution finale.
+# ── Injection des assets WASM / OCR ──────────────────────────────────────────
+# Les fichiers WASM sont préparés localement par scripts/fetch-wasm.sh
+# et copiés ici dans l'image (pas de téléchargement réseau au moment du build).
 COPY wasm/ dist/
 
-# -----------------------------------------------------------------------------
-# ÉTAPE 2 - RUNTIME
-# -----------------------------------------------------------------------------
-FROM nginx:alpine
+# ===========================================================================
+# ÉTAPE 2 — RUNTIME
+# ===========================================================================
+FROM nginx:alpine AS runtime-base
 
-# Copie du bundle statique compilé
-COPY --from=builder /build/dist /usr/share/nginx/html
+ENV HTTPS_PORT=443 \
+    NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx \
+    NGINX_ENVSUBST_FILTER=^HTTPS_PORT$
 
-# Injection de la configuration NGINX dans l'image finale
-COPY nginx/nginx.conf /etc/nginx/nginx.conf.template
+# Configuration NGINX (template — ${HTTPS_PORT} est substitué au démarrage par envsubst)
+COPY nginx/nginx.conf /etc/nginx/templates/nginx.conf.template
+COPY nginx/security-headers.conf /etc/nginx/security-headers.conf
 
-# Exposition des ports HTTP et HTTPS
+# HTTP (redirige vers HTTPS) et HTTPS
 EXPOSE 80 443
-
-# Configuration du healthcheck pour vérifier que le serveur est opérationnel
 HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:80/ >/dev/null || exit 1
-
-# Commande de démarrage : nginx en mode foreground
+  CMD wget -q --spider --no-check-certificate https://127.0.0.1/ || exit 1
 CMD ["nginx", "-g", "daemon off;"]
+
+FROM runtime-base AS runtime
+COPY --from=builder /build/dist /usr/share/nginx/html

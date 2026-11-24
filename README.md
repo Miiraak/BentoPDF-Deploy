@@ -1,6 +1,6 @@
-# Bento-Deploy
+# BentoPDF-Deploy
 
-Déploiement auto-hébergé de [BentoPDF](https://github.com/alam00000/bentopdf) avec build local, HTTPS en terminaison TLS, et assets WASM servis 100% offline.
+Déploiement auto-hébergé de [BentoPDF](https://github.com/alam00000/bentopdf) — build local, HTTPS avec terminaison TLS, et assets WASM servis localement.
 
 ```
 HTTP  :80  → NGINX → redirection 301 vers HTTPS
@@ -17,14 +17,15 @@ L'image Docker compile BentoPDF depuis les sources, embarque tous les assets WAS
 |---|---|---|
 | Docker Engine | 24.0+ | Build et runtime du conteneur |
 | Docker Compose | v2.0+ (plugin) | Orchestration |
-| Node.js + npm | 18+ | Préparation des assets WASM (hors conteneur) |
+| Node.js + npm | 22.12+ | Préparation des assets WASM (hors conteneur) |
 | RAM | 4 Go (8 Go recommandés) | Build Vite + LibreOffice WASM |
 | Espace disque | ~4 Go build, ~1 Go runtime | Cache npm + image Docker |
 
-Accès internet requis **une seule fois**, avant le premier build :
-- `github.com` — sources BentoPDF
+Accès internet requis pour la préparation et les builds sans cache :
+- `github.com`, `raw.githubusercontent.com`, `codeload.github.com` — sources BentoPDF
 - `registry.npmjs.org` — packages WASM/OCR
-- `hub.docker.com` — image de base `node:20-alpine` et `nginx:alpine`
+- `cdn.sheetjs.com` — archive SheetJS référencée dans le lockfile upstream
+- Docker Hub — images de base `node:22-alpine` et `nginx:alpine`
 
 ---
 
@@ -42,14 +43,16 @@ cd BentoPDF-Deploy
 cp /chemin/vers/cert.pem certs/cert.pem
 cp /chemin/vers/key.pem  certs/key.pem
 chmod 644 certs/cert.pem
-chmod 600 certs/key.pem
+chmod 640 certs/key.pem
 
 # 4. Builder et démarrer
 docker compose up --build -d
 ```
 
 Accès : **`https://<hostname-ou-ip>/`**
-> Une fois build, up et sain ; Le serveur qui héberge Bento peut être coupé totalement d'accès internet
+
+> **Durée du premier build :** 15–25 min (téléchargement sources + compilation Vite).  
+> **Reconstructions suivantes** (cache Docker) : 5–10 min.
 
 Voir [docs/certificat.md](docs/certificat.md) pour générer des certificats (PKI interne ou Let's Encrypt).
 
@@ -63,13 +66,14 @@ Toutes les variables sont dans `docker-compose.yml`. Éditez ce fichier directem
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `BENTOPDF_VERSION` | `v2.8.5` | Tag BentoPDF à compiler - voir [les releases](https://github.com/alam00000/bentopdf/tags) |
+| `BENTOPDF_VERSION` | `v2.8.12` | Tag BentoPDF à compiler — voir [les releases](https://github.com/alam00000/bentopdf/tags) |
 | `SIMPLE_MODE` | `true` | `true` = interface outils seuls (sans page marketing) · `false` = build commercial complet |
 | `VITE_DEFAULT_LANGUAGE` | `fr` | Langue de l'interface au premier chargement (`fr`, `en`, `de`, `es`, …) |
 | `VITE_BRAND_NAME` | `BentoPDF` | Nom affiché dans l'interface et l'onglet navigateur |
-| `VITE_BRAND_LOGO` | *(vide)* | Chemin du logo (ex : `branding/logo.svg`) |
+| `VITE_BRAND_LOGO` | *(vide)* | Chemin du logo relatif à `public/` (ex : `images/logo.svg`) |
 | `VITE_FOOTER_TEXT` | *(vide)* | Texte personnalisé dans le pied de page |
 | `DISABLE_TOOLS` | *(vide)* | IDs d'outils à masquer, séparés par virgule (ex : `sign,extract-image`) |
+| `VITE_TESSERACT_AVAILABLE_LANGUAGES` | `eng,fra` | Langues OCR à embarquer ; utilisées aussi par `fetch-wasm.sh` |
 
 ### Variables d'environnement runtime
 
@@ -108,7 +112,7 @@ curl -skI https://localhost/ | grep -i "cross-origin"
 
 | Test | Résultat attendu |
 |---|---|
-| `docker compose ps` | `Up (Healthy)` |
+| `docker compose ps` | `Up (healthy)` après le premier contrôle HTTPS |
 | HTTPS `curl` | `HTTP/1.1 200 OK` |
 | HTTP `curl` | `301 Moved Permanently` → `https://` |
 | Headers COI | `Cross-Origin-Embedder-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy` |
@@ -119,14 +123,22 @@ curl -skI https://localhost/ | grep -i "cross-origin"
 
 ```
 BentoPDF-Deploy/
+├── .github/
+│   ├── workflows/              # CI et scans de sécurité
+│   └── dependabot.yml          # Mises à jour Actions et images de base
 ├── Dockerfile                  # Build multi-étapes (builder Node + runtime NGINX)
 ├── docker-compose.yml          # Configuration principale (build args, ports, volumes)
 ├── nginx/
-│   └── nginx.conf              # Config NGINX (template — ${HTTPS_PORT} substitué au démarrage)
+│   ├── nginx.conf              # Template — ${HTTPS_PORT} substitué par l'entrypoint NGINX
+│   └── security-headers.conf   # En-têtes communs, y compris sur les erreurs
 ├── scripts/
-│   └── fetch-wasm.sh           # Prépare les assets WASM/OCR dans wasm/
+│   ├── fetch-wasm.sh           # Prépare les assets WASM/OCR dans wasm/
+│   └── show-licenses.sh        # Affiche les références des sources et dépendances
+├── tests/smoke.sh              # Tests HTTPS, healthcheck, routes et headers
+├── tests/runtime.sh            # Fixtures légères pour le runtime NGINX
+├── tests/fetch-wasm.sh         # Régressions des versions et erreurs OCR
 ├── certs/                      # cert.pem + key.pem (gitignorés, montés en volume)
-├── branding/                   # Assets de branding personnalisés (gitignorés)
+├── branding/                   # Copié vers public/images/ avant le build (gitignoré)
 ├── wasm/                       # Assets WASM générés par fetch-wasm.sh (gitignorés)
 └── docs/
     ├── deployement.md          # Guide de déploiement complet
@@ -146,8 +158,39 @@ BentoPDF-Deploy/
 
 ---
 
+## Contrôles automatisés
+
+Les workflows s'exécutent sur les push, les pull requests, manuellement et chaque lundi :
+
+- **Project checks** : ShellCheck, actionlint, validation Compose, tests des scripts et du runtime NGINX sur fixtures, téléchargement des assets, build complet, tests de l'image compilée et scan Trivy de l'image finale.
+- **Repository security** : scan Trivy des configurations et secrets du checkout.
+
+Les vulnérabilités **HIGH/CRITICAL**, même sans correctif disponible, font échouer le scan. Les dépendances npm du builder ne restent pas dans l'image finale : ce scan ne remplace pas un audit de sécurité upstream. Aucun résultat n'est publié vers un service externe. Les actions sont fixées par SHA et les permissions limitées à `contents: read`. Dependabot propose les mises à jour des Actions et des images de base.
+
+Une exception Trivy ciblée (`DS-0002`, dans `.trivyignore.yaml`) documente le master NGINX root, conservé pour les ports 80/443 et les clés TLS montées depuis l'hôte. Les workers utilisent l'utilisateur `nginx`, les certificats sont en lecture seule et Compose impose `no-new-privileges`. Cette exception n'exclut aucune vulnérabilité de package.
+
+Pour reproduire les contrôles du projet (ShellCheck et actionlint installés) :
+
+```bash
+shellcheck scripts/*.sh tests/*.sh
+actionlint
+bash tests/fetch-wasm.sh
+docker compose config --quiet
+docker build --target runtime-base -t bentopdf:runtime-test .
+bash tests/runtime.sh bentopdf:runtime-test
+./scripts/fetch-wasm.sh
+docker compose build
+bash tests/smoke.sh "$(docker compose images -q bentopdf)"
+```
+
+Le test crée ses propres certificats temporaires, utilise des ports locaux aléatoires et supprime uniquement son conteneur et ses fichiers. Il ne touche pas au déploiement existant.
+
+Les packages WASM additionnels et modèles OCR sont encore résolus depuis npm `latest` ; deux préparations peuvent donc différer. `show-licenses.sh` décrit les versions résolues à l'instant de son exécution, et non un inventaire certifié d'une image déjà construite.
+
+---
+
 ## Liens
 
 - **BentoPDF upstream :** [github.com/alam00000/bentopdf](https://github.com/alam00000/bentopdf)
-- **Issues :** [github.com/Miiraak/Bento-Deploy/issues](https://github.com/Miiraak/Bento-Deploy/issues)
+- **Issues :** [github.com/Miiraak/BentoPDF-Deploy/issues](https://github.com/Miiraak/BentoPDF-Deploy/issues)
 

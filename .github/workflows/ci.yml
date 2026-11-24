@@ -1,0 +1,81 @@
+name: Project checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Shell and Compose validation
+        run: |
+          for script in scripts/*.sh tests/*.sh; do bash -n "$script"; done
+          shellcheck scripts/*.sh tests/*.sh
+          docker compose config --quiet
+      - name: Workflow validation
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.12 -color
+      - name: Script and NGINX regression tests
+        run: |
+          bash tests/fetch-wasm.sh
+          docker build --target runtime-base -t bentopdf:runtime-ci .
+          bash tests/runtime.sh bentopdf:runtime-ci
+
+  build:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Prepare WASM and license references
+        run: |
+          ./scripts/fetch-wasm.sh
+          ./scripts/show-licenses.sh
+      - name: Read build arguments from Compose
+        run: |
+          docker compose config --format json \
+            | node -e 'const c=JSON.parse(require("fs").readFileSync(0,"utf8")); for (const [k,v] of Object.entries(c.services.bentopdf.build.args)) console.log(k+"="+v);' \
+            > "$RUNNER_TEMP/build-args"
+          {
+            echo 'BUILD_ARGS<<EOF'
+            cat "$RUNNER_TEMP/build-args"
+            echo EOF
+          } >> "$GITHUB_ENV"
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: bentopdf:ci
+          build-args: ${{ env.BUILD_ARGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Runtime regression tests
+        run: bash tests/smoke.sh bentopdf:ci
+      - name: Scan the built image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          scan-type: image
+          version: v0.76.2
+          image-ref: bentopdf:ci
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: false

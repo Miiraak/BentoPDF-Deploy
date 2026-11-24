@@ -1,37 +1,39 @@
-# -----------------------------------------------------------------------------
-# BentoPDF-Deploy - docker-compose.yml
-# Les variables sont configurables directement dans ce fichier.
-# -----------------------------------------------------------------------------
+# =============================================================================
+# BentoPDF-Deploy — docker-compose.yml
+#
+# Toutes les variables sont configurables directement dans ce fichier.
+# Pas de .env nécessaire.
+#
+# Démarrage :
+#   docker compose up --build -d
+# =============================================================================
 
 services:
   bentopdf:
     build:
       context: .
       args:
-        BENTOPDF_VERSION: "v2.8.5"           # Tag BentoPDF à compiler
-        SIMPLE_MODE: "true"                  # Mode simple (interface épurée)
-        VITE_DEFAULT_LANGUAGE: "fr"          # Langue de l'interface par défaut (ex: "en", "fr", "es", etc.)
-        VITE_BRAND_NAME: "BentoPDF"          # Nom affiché dans le titre de la page et le menu
-        VITE_BRAND_LOGO: ""                  # Chemin du logo (ex: branding/logo.svg) (optionnel)
+        BENTOPDF_VERSION: "v2.8.12"          # Tag BentoPDF à compiler
+        SIMPLE_MODE: "true"                  # Mode self-hosted (sans page marketing)
+        VITE_DEFAULT_LANGUAGE: "fr"          # Langue de l'interface
+        VITE_BRAND_NAME: "BentoPDF"          # Nom affiché dans l'interface
+        VITE_BRAND_LOGO: ""                  # Chemin du logo relatif à public/ (ex: images/logo.svg)
         VITE_FOOTER_TEXT: ""                 # Texte du pied de page (optionnel)
         DISABLE_TOOLS: ""                    # IDs d'outils à masquer, séparés par virgule (optionnel)
+        VITE_TESSERACT_AVAILABLE_LANGUAGES: "eng,fra" # Doit correspondre aux assets OCR téléchargés
 
-    container_name: bentopdf                 # Nom du conteneur Docker
-    restart: unless-stopped                  # Redémarre automatiquement sauf si le conteneur est arrêté manuellement
+    container_name: bentopdf
+    restart: unless-stopped
 
     environment:
       HTTPS_PORT: "443"                      # Injecté dans la config NGINX (redirection HTTP→HTTPS)
 
-    command: >  
-      /bin/sh -c "envsubst '$${HTTPS_PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf &&
-      exec nginx -g 'daemon off;'"
-
     ports:
-      - "80:80"                              # Binding du port HTTP pour redirection vers HTTPS
-      - "443:443"                            # Port HTTPS exposé
+      - "80:80"                              # HTTP — redirige vers HTTPS
+      - "443:443"                            # HTTPS
 
     volumes:
       - "./certs:/etc/nginx/certs:ro"        # cert.pem + key.pem montés en lecture seule
 
     security_opt:
-      - no-new-privileges:true               # Empêche l'élévation de privilèges dans le conteneur
+      - no-new-privileges:true

@@ -1,7 +1,3 @@
-# .gitignore - BentoPDF-Deploy
-# Exclusion des fichiers inutiles ou sensibles lors des commits Git.
-# ----------------------------------------------------------------------------- #
-
 # Certificats TLS — ne jamais committer des clés privées ou certificats
 certs/*
 !certs/.gitkeep
@@ -18,9 +14,11 @@ wasm/*
 .DS_Store
 Thumbs.db
 
-# IDE / éditeur / OS / Temp (au cas ou...) 
+# Éditeurs / IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# Fichiers temporaires
 tmp/

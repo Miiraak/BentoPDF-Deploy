@@ -1,31 +1,40 @@
-# .dockerignore - BentoPDF-Deploy 
-# Exclusion des fichiers inutiles ou sensibles du build docker.
-# -----------------------------------------------------------------------------
+# =============================================================================
+# .dockerignore — BentoPDF-Deploy
+#
+# Exclut du contexte de build Docker les fichiers inutiles ou sensibles.
+# Le contexte inclut le Dockerfile, nginx/, wasm/ et branding/.
+# =============================================================================
 
-# Exclusion des divers contrôles 
+# Contrôle de version
 .git
 .gitignore
 .gitattributes
 .gitkeep
 
-# Exclusion des documentation 
+# Documentation (non nécessaire dans l'image)
 README.md
 docs/
 *.md
 
-# Exclusion des certificats TLS (ne JAMAIS intégrer dans une image) 
-# Ils sont montés en volume au runtime via le docker-compose. 
+# Certificats TLS — JAMAIS intégrés dans une image.
+# Ils sont montés en volume au runtime via docker-compose.
 certs/
 
-# Exclusion des scripts (inutiles dans le build) 
+# Contrôles locaux et workflows (non nécessaires dans l'image)
+.github/
+tests/
 scripts/
 
-# IDE / éditeur / OS / Temp (au cas ou...) 
+# IDE / éditeur
 .vscode/
 .idea/
 *.swp
 *.swo
 *.orig
+
+# Artefacts OS
 .DS_Store
 Thumbs.db
+
+# Fichiers temporaires
 tmp/

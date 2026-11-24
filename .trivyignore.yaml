@@ -1,0 +1,9 @@
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - Dockerfile
+    statement: >-
+      The NGINX master needs root to read host-mounted TLS keys and bind ports
+      80/443. Workers run as nginx; Compose enforces no-new-privileges and mounts
+      certificates read-only. Moving to a non-root master requires a separate
+      migration of ports and host key permissions.
