@@ -21,7 +21,7 @@
 # ===========================================================================
 # ÉTAPE 1 — BUILD
 # ===========================================================================
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 
 # Valeurs injectées depuis docker-compose.yml (section args)
 ARG BENTOPDF_VERSION
